@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DodgeCat v0.1</title>
+<style>
+  body {
+    margin: 0;
+    background: black;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+    font-family: monospace;
+  }
+  #status {
+    text-align: center;
+    font-size: 18px;
+    margin-bottom: 10px;
+    height: 40px;
+  }
+  canvas {
+    border: none;
+    background: black;
+  }
+  button {
+    margin-top: 15px;
+    padding: 10px 24px;
+    font-size: 16px;
+    color: white;
+    background: transparent;
+    border: 2px solid white;
+    border-radius: 6px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 8px white;
+  }
+  button:hover {
+    background: white;
+    color: black;
+    box-shadow: 0 0 16px white;
+  }
+  #restart {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="status"></div>
+<canvas id="game" width="300" height="300"></canvas>
+<button id="start">Start Game</button>
+<button id="restart">Restart</button>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const statusText = document.getElementById("status");
+const startBtn = document.getElementById("start");
+const restartBtn = document.getElementById("restart");
+
+const BOX_SIZE = 300;
+const PLAYER_SIZE = 15;
+const PROJECTILE_W = 4;
+const PROJECTILE_H = 4;
+const PLAYER_SPEED = 2;
+
+let player, projectiles, openings, spawnInterval, projectileSpeed, timeSurvived, lastSpawn, gameOver, keys;
+let playerHit = false;
+
+// --- Player sprite pattern ---
+const playerSprite = [
+"xx....xxx.....",
+"x.x..x..x.....",
+"x..xx...x.....",
+"x.......x.....",
+"x.......x.....",
+"x..x.x...x....",
+"x..x.x...x..xx",
+"x.......x..x.x",
+"x.......xx.x.x",
+".x.....x..x..x",
+"..x........xx.",
+"..x........x..",
+"..x.x.x..x.x..",
+"..x.x.xxxx.x..",
+"..xxxxx.xxxx.."
+];
+// --------------------------------
+
+function initGame() {
+  player = { x: BOX_SIZE / 2, y: BOX_SIZE / 2 };
+  projectiles = [];
+  openings = { top: [], bottom: [], left: [], right: [] };
+  spawnInterval = 2000;
+  projectileSpeed = 2;
+  timeSurvived = 0;
+  lastSpawn = 0;
+  gameOver = false;
+  keys = {};
+  playerHit = false;
+}
+
+function startGame() {
+  initGame();
+  startBtn.style.display = "none";
+  restartBtn.style.display = "none";
+  statusText.innerHTML = `<div id="timer">Time: 0.0s</div>`;
+  requestAnimationFrame(loop);
+}
+
+function resetGame() {
+  initGame();
+  restartBtn.style.display = "none";
+  statusText.innerHTML = `<div id="timer">Time: 0.0s</div>`;
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener("keydown", e => keys[e.key] = true);
+window.addEventListener("keyup", e => keys[e.key] = false);
+startBtn.addEventListener("click", startGame);
+restartBtn.addEventListener("click", resetGame);
+
+function updatePlayer() {
+  if (keys["ArrowUp"] || keys["w"]) player.y -= PLAYER_SPEED;
+  if (keys["ArrowDown"] || keys["s"]) player.y += PLAYER_SPEED;
+  if (keys["ArrowLeft"] || keys["a"]) player.x -= PLAYER_SPEED;
+  if (keys["ArrowRight"] || keys["d"]) player.x += PLAYER_SPEED;
+
+  const half = PLAYER_SIZE / 2;
+  player.x = Math.max(half, Math.min(BOX_SIZE - half, player.x));
+  player.y = Math.max(half, Math.min(BOX_SIZE - half, player.y));
+}
+
+function spawnProjectile() {
+  const now = Date.now();
+  const sides = ["top", "bottom", "left", "right"];
+  const numToSpawn = 1 + Math.floor(Math.random() * 3);
+
+  for (let i = 0; i < numToSpawn; i++) {
+    const side = sides[Math.floor(Math.random() * 4)];
+    const lastOpening = openings[side][openings[side].length - 1];
+    if (lastOpening && now - lastOpening.time < 1000) continue;
+
+    const pos = Math.random() * BOX_SIZE;
+    let x, y, vx, vy;
+    switch (side) {
+      case "top":    x = pos; y = 0; vx = 0; vy = projectileSpeed; break;
+      case "bottom": x = pos; y = BOX_SIZE; vx = 0; vy = -projectileSpeed; break;
+      case "left":   x = 0; y = pos; vx = projectileSpeed; vy = 0; break;
+      case "right":  x = BOX_SIZE; y = pos; vx = -projectileSpeed; vy = 0; break;
+    }
+    openings[side].push({ pos, time: now });
+    projectiles.push({ x, y, vx, vy, side });
+  }
+}
+
+function updateProjectiles() {
+  const now = Date.now();
+  for (let p of projectiles) {
+    p.x += p.vx;
+    p.y += p.vy;
+
+    if (p.x < 0 || p.x > BOX_SIZE || p.y < 0 || p.y > BOX_SIZE) {
+      let exitSide, pos;
+      if (p.y < 0)      { exitSide = "top"; pos = p.x; }
+      else if (p.y > BOX_SIZE) { exitSide = "bottom"; pos = p.x; }
+      else if (p.x < 0) { exitSide = "left"; pos = p.y; }
+      else if (p.x > BOX_SIZE) { exitSide = "right"; pos = p.y; }
+
+      if (exitSide) openings[exitSide].push({ pos, time: now });
+      p.remove = true;
+    }
+  }
+  projectiles = projectiles.filter(p => !p.remove);
+}
+
+function checkCollision() {
+  for (let p of projectiles) {
+    if (
+      Math.abs(p.x - player.x) < (PLAYER_SIZE / 2 + PROJECTILE_W / 2) &&
+      Math.abs(p.y - player.y) < (PLAYER_SIZE / 2 + PROJECTILE_H / 2)
+    ) {
+      gameOver = true;
+      playerHit = true;
+      // close all openings
+      for (let s of Object.keys(openings)) openings[s] = [];
+    }
+  }
+}
+
+function cleanupOpenings() {
+  const now = Date.now();
+  for (const side of Object.keys(openings)) {
+    openings[side] = openings[side].filter(o => now - o.time < 1000);
+  }
+}
+
+function drawWalls() {
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 2;
+  drawWallWithOpenings(0, 0, BOX_SIZE, 0, "top");
+  drawWallWithOpenings(0, BOX_SIZE, BOX_SIZE, BOX_SIZE, "bottom");
+  drawWallWithOpenings(0, 0, 0, BOX_SIZE, "left");
+  drawWallWithOpenings(BOX_SIZE, 0, BOX_SIZE, BOX_SIZE, "right");
+}
+
+function drawWallWithOpenings(x1, y1, x2, y2, side) {
+  const isHorizontal = y1 === y2;
+  const oList = openings[side];
+  const openSize = 12;
+  if (oList.length === 0) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    return;
+  }
+
+  let segments = [];
+  let cuts = oList.map(o => [o.pos - openSize / 2, o.pos + openSize / 2]);
+  cuts.sort((a, b) => a[0] - b[0]);
+  let start = 0;
+  for (let [s, e] of cuts) {
+    if (s > start) segments.push([start, s]);
+    start = e;
+  }
+  if (start < BOX_SIZE) segments.push([start, BOX_SIZE]);
+
+  for (let [s, e] of segments) {
+    ctx.beginPath();
+    if (isHorizontal) {
+      ctx.moveTo(s, y1);
+      ctx.lineTo(e, y2);
+    } else {
+      ctx.moveTo(x1, s);
+      ctx.lineTo(x2, e);
+    }
+    ctx.stroke();
+  }
+}
+
+function drawPlayerSprite(x, y, color) {
+  const size = 1; // 1px per pixel (exact 15x15)
+  ctx.fillStyle = color;
+  for (let r = 0; r < playerSprite.length; r++) {
+    for (let c = 0; c < playerSprite[r].length; c++) {
+      if (playerSprite[r][c] === "x") {
+        ctx.fillRect(
+          x - PLAYER_SIZE / 2 + c,
+          y - PLAYER_SIZE / 2 + r,
+          size,
+          size
+        );
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, BOX_SIZE, BOX_SIZE);
+  drawWalls();
+
+  drawPlayerSprite(player.x, player.y, playerHit ? "red" : "white");
+
+  for (let p of projectiles) {
+    ctx.fillStyle = "white";
+    ctx.fillRect(p.x - PROJECTILE_W / 2, p.y - PROJECTILE_H / 2, PROJECTILE_W, PROJECTILE_H);
+  }
+}
+
+function loop() {
+  if (gameOver) {
+    statusText.innerHTML = `<div style="color:red;font-size:20px;">GAME OVER</div>
+                            <div>Time survived: ${timeSurvived.toFixed(1)}s</div>`;
+    restartBtn.style.display = "inline-block";
+    return;
+  }
+
+  updatePlayer();
+
+  const now = Date.now();
+  if (now - lastSpawn > spawnInterval) {
+    spawnProjectile();
+    lastSpawn = now;
+  }
+
+  updateProjectiles();
+  checkCollision();
+  cleanupOpenings();
+
+  timeSurvived += 1 / 60;
+  document.getElementById("timer").textContent = `Time: ${timeSurvived.toFixed(1)}s`;
+
+  // --- Smooth projectile scaling ---
+  projectileSpeed = Math.min(5, 2 + Math.sqrt(timeSurvived) * 0.5);
+  spawnInterval = Math.max(500, 2000 - Math.sqrt(timeSurvived) * 100);
+  // ---------------------------------
+
+  draw();
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
