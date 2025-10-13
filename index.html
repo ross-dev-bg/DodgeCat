@@ -1,310 +1,413 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DodgeCat v0.1</title>
+<meta charset="UTF-8">
+<title>DodgeCat v0.2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
   body {
-    margin: 0;
     background: black;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
     color: white;
     font-family: monospace;
-  }
-  #status {
     text-align: center;
-    font-size: 18px;
-    margin-bottom: 10px;
-    height: 40px;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    touch-action: none;
+    overflow: hidden;
+    box-sizing: border-box;
   }
+
+  #gameContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform-origin: top center;
+  }
+
   canvas {
-    border: none;
+    display: block;
+    touch-action: none;
+  }
+
+  #spriteCanvas {
+    margin-top: 20px;
+    margin-bottom: 20px;
     background: black;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
   }
+
+  #timer, #status {
+    font-size: 18px;
+    margin-top: 10px;
+  }
+
+  #status ol {
+    font-size: 14px;
+    padding-left: 20px;
+    margin: 5px 0;
+  }
+
   button {
-    margin-top: 15px;
-    padding: 10px 24px;
-    font-size: 16px;
-    color: white;
-    background: transparent;
-    border: 2px solid white;
-    border-radius: 6px;
-    cursor: pointer;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 8px white;
-  }
-  button:hover {
+    display: none;
+    padding: 6px 14px;
     background: white;
     color: black;
-    box-shadow: 0 0 16px white;
+    border: none;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 2px;
   }
-  #restart {
-    display: none;
+
+  button:hover {
+    background: #ccc;
   }
 </style>
 </head>
 <body>
-<div id="status"></div>
-<canvas id="game" width="300" height="300"></canvas>
-<button id="start">Start Game</button>
-<button id="restart">Restart</button>
+
+<div id="gameContainer">
+  <canvas id="spriteCanvas"></canvas>
+  <canvas id="game" width="300" height="300"></canvas>
+  <div>
+    <button id="startBtn">Start</button>
+    <button id="restartBtn">Restart</button>
+  </div>
+  <div id="timer">Time: 0.0s</div>
+  <div id="status"></div>
+</div>
 
 <script>
+/* ---------------- PIXEL SPRITE ---------------- */
+const spriteData = `
+xxxxxxxxxx..............xxxxxxxxxxxxxx......xxxxxxxxxx................xxxxxxxxxx........xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxx............xxxxxxxxxxxxxx......xxxxxxxxxxxx............xxxxxxxxxxxxxx......xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx
+xx........xxxx........xxxx..........xxxx....xx........xxxx........xxxx..........xxxx....xx....................xx..............xx....xx..............xx............xx........
+xx..........xxxx......xx..............xx....xx..........xxxx......xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx............xxxx....xx..............xx....xx............xxxx....xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx....................xxxxxxxxxxxxxxxxxx....xx....................xxxxxxxxxxxxxxxxxx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx....................xxxxxxxxxxxxxxxxxx....xx....................xxxxxxxxxxxxxxxxxx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx........xxxxxxxx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx........xxxxxxxx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx............xxxx....xx..............xx....xx............xxxx....xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx..........xxxx......xx..............xx....xx..........xxxx......xx..............xx....xx....................xx..............xx....xx..............xx............xx........
+xx........xxxx........xxxx..........xxxx....xx........xxxx........xxxx..........xxxx....xx....................xx..............xx....xx..............xx............xx........
+xxxxxxxxxxxx............xxxxxxxxxxxxxx......xxxxxxxxxxxx............xxxxxxxxxxxxxx......xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xx..............xx............xx........
+xxxxxxxxxx..............xxxxxxxxxxxxxx......xxxxxxxxxx................xxxxxxxxxx........xxxxxxxxxxxxxxxxxx....xxxxxxxxxxxxxxxxxx....xx..............xx............xx........
+`;
+
+const spriteRows = spriteData.split("\n");
+const spriteCols = Math.max(...spriteRows.map(row => row.length));
+const pixelSize = 2;
+const spriteWidth = spriteCols * pixelSize;
+const spriteHeight = spriteRows.length * pixelSize;
+
+const spriteCanvas = document.getElementById("spriteCanvas");
+spriteCanvas.width = spriteWidth;
+spriteCanvas.height = spriteHeight;
+const spriteCtx = spriteCanvas.getContext("2d");
+
+spriteRows.forEach((row, y) => {
+  for (let x = 0; x < row.length; x++) {
+    if (row[x] === "x") {
+      spriteCtx.fillStyle = "white";
+      spriteCtx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    }
+  }
+});
+
+/* ---------------- SCALE FOR ALL DEVICES ---------------- */
+function scaleGameContainer() {
+  const container = document.getElementById("gameContainer");
+  const maxWidth = window.innerWidth * 0.95;
+  const maxHeight = window.innerHeight * 0.95;
+
+  const gameWidth = Math.max(spriteCanvas.width, 300);
+  const gameHeight = spriteCanvas.height + 300 + 150;
+
+  const scale = Math.min(maxWidth / gameWidth, maxHeight / gameHeight, 1);
+  container.style.transform = `scale(${scale})`;
+  container.style.transformOrigin = "top center";
+}
+window.addEventListener("resize", scaleGameContainer);
+scaleGameContainer();
+
+/* ---------------- GAME CODE ---------------- */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const statusText = document.getElementById("status");
-const startBtn = document.getElementById("start");
-const restartBtn = document.getElementById("restart");
+const restartBtn = document.getElementById("restartBtn");
+const startBtn = document.getElementById("startBtn");
 
-const BOX_SIZE = 300;
-const PLAYER_SIZE = 15;
-const PROJECTILE_W = 4;
-const PROJECTILE_H = 4;
-const PLAYER_SPEED = 2;
+const boxSize = 260;
+const boxOffset = (canvas.width - boxSize) / 2;
+const playerSize = 15;
+const projectileSize = 4;
 
-let player, projectiles, openings, spawnInterval, projectileSpeed, timeSurvived, lastSpawn, gameOver, keys;
-let playerHit = false;
-
-// --- Player sprite pattern ---
-const playerSprite = [
-"xx....xxx.....",
-"x.x..x..x.....",
-"x..xx...x.....",
-"x.......x.....",
-"x.......x.....",
-"x..x.x...x....",
-"x..x.x...x..xx",
-"x.......x..x.x",
-"x.......xx.x.x",
-".x.....x..x..x",
-"..x........xx.",
-"..x........x..",
-"..x.x.x..x.x..",
-"..x.x.xxxx.x..",
-"..xxxxx.xxxx.."
+const idleDesign = [
+"xx....xxx.....","x.x..x..x.....","x..xx...x.....","x.......x.....","x.......x.....",
+"x.x.x...x.....","x.x.x...x...xx","x..x....x..x.x","x.......xx.x.x",".x.....x..x..x",
+"..x........xx.","..x........x..","..x.x.x..x.x..","..x.x.xxxx.x..","..xxxxx.xxxx.."
 ];
-// --------------------------------
 
-function initGame() {
-  player = { x: BOX_SIZE / 2, y: BOX_SIZE / 2 };
-  projectiles = [];
-  openings = { top: [], bottom: [], left: [], right: [] };
-  spawnInterval = 2000;
-  projectileSpeed = 2;
-  timeSurvived = 0;
-  lastSpawn = 0;
-  gameOver = false;
-  keys = {};
-  playerHit = false;
-}
+const movingLeftDesign = [
+".x...x.....x..",".xx.xx....x...",".x.x.x.....x..","x.x.x.x.....x.","x.x.x.x....x..",
+"x.....x....x..",".xxxxx.....x..","...x..xxxxx...","...x......x...",
+"..x.......xx..",".xxxxxxxxxxxx.",".x..x....x..x.","x...x....x..x.",
+"x..x....x....x","x..x....x....x"
+];
 
-function startGame() {
-  initGame();
-  startBtn.style.display = "none";
-  restartBtn.style.display = "none";
-  statusText.innerHTML = `<div id="timer">Time: 0.0s</div>`;
-  requestAnimationFrame(loop);
-}
+const movingRightDesign = [
+"..x.....x...x.","...x....xx.xx.","..x.....x.x.x.",".x.....x.x.x.x","..x....x.x.x.x",
+"..x....x.....x","..xxxxx.....x.","...xxxxx..x...","...x......x...",
+"..xx.......x..",".xxxxxxxxxxxx.",".x..x....x..x.","x..x....x...x.",
+"x....x....x..x","x....x....x..x"
+];
+
+let player, projectiles, openings, keys;
+let timeSurvived, gameOver, projectileSpeed, spawnInterval, lastSpawn, lastTime;
+let highScores = [];
 
 function resetGame() {
-  initGame();
+  player = { x: canvas.width/2, y: canvas.height/2, color: "white" };
+  projectiles = [];
+  openings = [];
+  keys = {};
+  timeSurvived = 0;
+  gameOver = false;
+  projectileSpeed = 2;
+  spawnInterval = 2000;
+  lastSpawn = 0;
+  lastTime = Date.now();
+  statusText.innerHTML = "";
   restartBtn.style.display = "none";
-  statusText.innerHTML = `<div id="timer">Time: 0.0s</div>`;
+  startBtn.style.display = "none";
+  document.getElementById("timer").style.display = "block";
   requestAnimationFrame(loop);
 }
 
-window.addEventListener("keydown", e => keys[e.key] = true);
-window.addEventListener("keyup", e => keys[e.key] = false);
-startBtn.addEventListener("click", startGame);
-restartBtn.addEventListener("click", resetGame);
-
-function updatePlayer() {
-  if (keys["ArrowUp"] || keys["w"]) player.y -= PLAYER_SPEED;
-  if (keys["ArrowDown"] || keys["s"]) player.y += PLAYER_SPEED;
-  if (keys["ArrowLeft"] || keys["a"]) player.x -= PLAYER_SPEED;
-  if (keys["ArrowRight"] || keys["d"]) player.x += PLAYER_SPEED;
-
-  const half = PLAYER_SIZE / 2;
-  player.x = Math.max(half, Math.min(BOX_SIZE - half, player.x));
-  player.y = Math.max(half, Math.min(BOX_SIZE - half, player.y));
+function getMovementDesign() {
+  if (keys["ArrowLeft"] || keys["a"]) return movingLeftDesign;
+  if (keys["ArrowRight"] || keys["d"]) return movingRightDesign;
+  return idleDesign;
 }
 
-function spawnProjectile() {
-  const now = Date.now();
-  const sides = ["top", "bottom", "left", "right"];
-  const numToSpawn = 1 + Math.floor(Math.random() * 3);
-
-  for (let i = 0; i < numToSpawn; i++) {
-    const side = sides[Math.floor(Math.random() * 4)];
-    const lastOpening = openings[side][openings[side].length - 1];
-    if (lastOpening && now - lastOpening.time < 1000) continue;
-
-    const pos = Math.random() * BOX_SIZE;
-    let x, y, vx, vy;
-    switch (side) {
-      case "top":    x = pos; y = 0; vx = 0; vy = projectileSpeed; break;
-      case "bottom": x = pos; y = BOX_SIZE; vx = 0; vy = -projectileSpeed; break;
-      case "left":   x = 0; y = pos; vx = projectileSpeed; vy = 0; break;
-      case "right":  x = BOX_SIZE; y = pos; vx = -projectileSpeed; vy = 0; break;
-    }
-    openings[side].push({ pos, time: now });
-    projectiles.push({ x, y, vx, vy, side });
-  }
-}
-
-function updateProjectiles() {
-  const now = Date.now();
-  for (let p of projectiles) {
-    p.x += p.vx;
-    p.y += p.vy;
-
-    if (p.x < 0 || p.x > BOX_SIZE || p.y < 0 || p.y > BOX_SIZE) {
-      let exitSide, pos;
-      if (p.y < 0)      { exitSide = "top"; pos = p.x; }
-      else if (p.y > BOX_SIZE) { exitSide = "bottom"; pos = p.x; }
-      else if (p.x < 0) { exitSide = "left"; pos = p.y; }
-      else if (p.x > BOX_SIZE) { exitSide = "right"; pos = p.y; }
-
-      if (exitSide) openings[exitSide].push({ pos, time: now });
-      p.remove = true;
-    }
-  }
-  projectiles = projectiles.filter(p => !p.remove);
-}
-
-function checkCollision() {
-  for (let p of projectiles) {
-    if (
-      Math.abs(p.x - player.x) < (PLAYER_SIZE / 2 + PROJECTILE_W / 2) &&
-      Math.abs(p.y - player.y) < (PLAYER_SIZE / 2 + PROJECTILE_H / 2)
-    ) {
-      gameOver = true;
-      playerHit = true;
-      // close all openings
-      for (let s of Object.keys(openings)) openings[s] = [];
-    }
-  }
-}
-
-function cleanupOpenings() {
-  const now = Date.now();
-  for (const side of Object.keys(openings)) {
-    openings[side] = openings[side].filter(o => now - o.time < 1000);
-  }
-}
-
-function drawWalls() {
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 2;
-  drawWallWithOpenings(0, 0, BOX_SIZE, 0, "top");
-  drawWallWithOpenings(0, BOX_SIZE, BOX_SIZE, BOX_SIZE, "bottom");
-  drawWallWithOpenings(0, 0, 0, BOX_SIZE, "left");
-  drawWallWithOpenings(BOX_SIZE, 0, BOX_SIZE, BOX_SIZE, "right");
-}
-
-function drawWallWithOpenings(x1, y1, x2, y2, side) {
-  const isHorizontal = y1 === y2;
-  const oList = openings[side];
-  const openSize = 12;
-  if (oList.length === 0) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    return;
-  }
-
-  let segments = [];
-  let cuts = oList.map(o => [o.pos - openSize / 2, o.pos + openSize / 2]);
-  cuts.sort((a, b) => a[0] - b[0]);
-  let start = 0;
-  for (let [s, e] of cuts) {
-    if (s > start) segments.push([start, s]);
-    start = e;
-  }
-  if (start < BOX_SIZE) segments.push([start, BOX_SIZE]);
-
-  for (let [s, e] of segments) {
-    ctx.beginPath();
-    if (isHorizontal) {
-      ctx.moveTo(s, y1);
-      ctx.lineTo(e, y2);
-    } else {
-      ctx.moveTo(x1, s);
-      ctx.lineTo(x2, e);
-    }
-    ctx.stroke();
-  }
-}
-
-function drawPlayerSprite(x, y, color) {
-  const size = 1; // 1px per pixel (exact 15x15)
-  ctx.fillStyle = color;
-  for (let r = 0; r < playerSprite.length; r++) {
-    for (let c = 0; c < playerSprite[r].length; c++) {
-      if (playerSprite[r][c] === "x") {
-        ctx.fillRect(
-          x - PLAYER_SIZE / 2 + c,
-          y - PLAYER_SIZE / 2 + r,
-          size,
-          size
-        );
+function drawPlayer() {
+  const design = getMovementDesign();
+  for (let row = 0; row < design.length; row++) {
+    for (let col = 0; col < design[row].length; col++) {
+      if (design[row][col] === "x") {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x - playerSize/2 + col, player.y - playerSize/2 + row, 1, 1);
       }
     }
   }
 }
 
-function draw() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, BOX_SIZE, BOX_SIZE);
-  drawWalls();
+function drawBox() {
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(boxOffset, boxOffset, boxSize, boxSize);
 
-  drawPlayerSprite(player.x, player.y, playerHit ? "red" : "white");
+  openings.forEach(o => {
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 4;
+    if (o.side === "top" || o.side === "bottom") {
+      ctx.beginPath();
+      ctx.moveTo(o.pos - 5, o.side === "top" ? boxOffset : boxOffset + boxSize);
+      ctx.lineTo(o.pos + 5, o.side === "top" ? boxOffset : boxOffset + boxSize);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(o.side === "left" ? boxOffset : boxOffset + boxSize, o.pos - 5);
+      ctx.lineTo(o.side === "left" ? boxOffset : boxOffset + boxSize, o.pos + 5);
+      ctx.stroke();
+    }
+  });
+}
 
-  for (let p of projectiles) {
-    ctx.fillStyle = "white";
-    ctx.fillRect(p.x - PROJECTILE_W / 2, p.y - PROJECTILE_H / 2, PROJECTILE_W, PROJECTILE_H);
+function spawnProjectile() {
+  const sides = ["top", "bottom", "left", "right"];
+  const side = sides[Math.floor(Math.random() * sides.length)];
+  const numToSpawn = 3 + Math.floor(timeSurvived / 10);
+
+  for (let i = 0; i < numToSpawn; i++) {
+    const delay = i * 100;
+    setTimeout(() => {
+      let x, y, vx, vy, pos;
+      if (side === "top") { x = boxOffset + Math.random() * boxSize; y = boxOffset; vx = 0; vy = projectileSpeed; pos = x; }
+      else if (side === "bottom") { x = boxOffset + Math.random() * boxSize; y = boxOffset + boxSize; vx = 0; vy = -projectileSpeed; pos = x; }
+      else if (side === "left") { x = boxOffset; y = boxOffset + Math.random() * boxSize; vx = projectileSpeed; vy = 0; pos = y; }
+      else { x = boxOffset + boxSize; y = boxOffset + Math.random() * boxSize; vx = -projectileSpeed; vy = 0; pos = y; }
+
+      openings.push({ side, pos, lastUsed: Date.now() });
+      projectiles.push({ x, y, vx, vy });
+    }, delay);
   }
 }
 
+function updatePlayer() {
+  const speed = 3;
+  let dx = 0, dy = 0;
+  if (keys["ArrowUp"] || keys["w"]) dy -= 1;
+  if (keys["ArrowDown"] || keys["s"]) dy += 1;
+  if (keys["ArrowLeft"] || keys["a"]) dx -= 1;
+  if (keys["ArrowRight"] || keys["d"]) dx += 1;
+
+  if (dx !== 0 || dy !== 0) {
+    const len = Math.sqrt(dx*dx + dy*dy);
+    dx = dx / len * speed;
+    dy = dy / len * speed;
+  }
+
+  player.x += dx;
+  player.y += dy;
+
+  const min = boxOffset + playerSize/2;
+  const max = boxOffset + boxSize - playerSize/2;
+  player.x = Math.max(min, Math.min(max, player.x));
+  player.y = Math.max(min, Math.min(max, player.y));
+}
+
+function updateProjectiles() {
+  const newOpenings = [];
+  projectiles = projectiles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    let exited = false;
+    if (p.vy > 0 && p.y >= boxOffset + boxSize) { newOpenings.push({ side: "bottom", pos: p.x, lastUsed: Date.now() }); exited = true; }
+    else if (p.vy < 0 && p.y <= boxOffset) { newOpenings.push({ side: "top", pos: p.x, lastUsed: Date.now() }); exited = true; }
+    else if (p.vx > 0 && p.x >= boxOffset + boxSize) { newOpenings.push({ side: "right", pos: p.y, lastUsed: Date.now() }); exited = true; }
+    else if (p.vx < 0 && p.x <= boxOffset) { newOpenings.push({ side: "left", pos: p.y, lastUsed: Date.now() }); exited = true; }
+    return !exited;
+  });
+  openings.push(...newOpenings);
+}
+
+function checkCollision() {
+  for (const p of projectiles) {
+    if (Math.abs(p.x - player.x) < (playerSize/2 + projectileSize/2) &&
+        Math.abs(p.y - player.y) < (playerSize/2 + projectileSize/2)) {
+      gameOver = true;
+      player.color = "red";
+    }
+  }
+}
+
+function cleanupOpenings() {
+  openings = openings.filter(o => Date.now() - o.lastUsed < 1000);
+}
+
+function drawProjectiles() {
+  ctx.fillStyle = "white";
+  projectiles.forEach(p => {
+    ctx.fillRect(p.x - projectileSize/2, p.y - projectileSize/2, projectileSize, projectileSize);
+  });
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBox();
+  drawPlayer();
+  drawProjectiles();
+}
+
 function loop() {
+  const now = Date.now();
+  const delta = (now - lastTime)/1000;
+  lastTime = now;
+
   if (gameOver) {
-    statusText.innerHTML = `<div style="color:red;font-size:20px;">GAME OVER</div>
-                            <div>Time survived: ${timeSurvived.toFixed(1)}s</div>`;
-    restartBtn.style.display = "inline-block";
+    openings = [];
+    document.getElementById("timer").style.display = "none";
+
+    highScores.push(timeSurvived);
+    highScores.sort((a,b)=>b-a);
+    if (highScores.length>5) highScores.length=5;
+
+    let scoreHTML = '<div style="color:red;font-size:20px;">GAME OVER</div>';
+    scoreHTML += `<div>Time survived: ${timeSurvived.toFixed(1)}s</div>`;
+    scoreHTML += '<div style="margin-top:8px;"><strong>Top 5 Scores</strong></div><ol>';
+    highScores.forEach(s=>scoreHTML+=`<li>${s.toFixed(1)}s</li>`);
+    scoreHTML += '</ol>';
+
+    statusText.innerHTML = scoreHTML;
+    restartBtn.style.display="inline-block";
     return;
   }
 
   updatePlayer();
-
-  const now = Date.now();
-  if (now - lastSpawn > spawnInterval) {
-    spawnProjectile();
-    lastSpawn = now;
-  }
+  if(now-lastSpawn>spawnInterval){spawnProjectile();lastSpawn=now;}
 
   updateProjectiles();
   checkCollision();
   cleanupOpenings();
 
-  timeSurvived += 1 / 60;
-  document.getElementById("timer").textContent = `Time: ${timeSurvived.toFixed(1)}s`;
+  timeSurvived += delta;
+  document.getElementById("timer").textContent=`Time: ${timeSurvived.toFixed(1)}s`;
 
-  // --- Smooth projectile scaling ---
-  projectileSpeed = Math.min(5, 2 + Math.sqrt(timeSurvived) * 0.5);
-  spawnInterval = Math.max(500, 2000 - Math.sqrt(timeSurvived) * 100);
-  // ---------------------------------
+  projectileSpeed = 0.2*Math.min(5,2+Math.sqrt(timeSurvived)*0.5);
+  spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*100);
 
   draw();
   requestAnimationFrame(loop);
 }
+
+window.addEventListener("keydown", e=>keys[e.key]=true);
+window.addEventListener("keyup", e=>keys[e.key]=false);
+
+canvas.addEventListener("touchstart", handleTouch);
+canvas.addEventListener("touchmove", handleTouch);
+canvas.addEventListener("touchend", ()=>{ keys = {}; });
+
+function handleTouch(e){
+  e.preventDefault(); // prevent scrolling
+  keys = {};
+  const rect = canvas.getBoundingClientRect();
+
+  for (let t of e.touches) {
+    const touchX = t.clientX - rect.left;
+    const touchY = t.clientY - rect.top;
+
+    const dx = touchX - player.x;
+    const dy = touchY - player.y;
+
+    // Normalize movement
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len > 0) {
+      keys["ArrowRight"] = dx > 0;
+      keys["ArrowLeft"] = dx < 0;
+      keys["ArrowDown"] = dy > 0;
+      keys["ArrowUp"] = dy < 0;
+    }
+  }
+}
+
+restartBtn.addEventListener("click", resetGame);
+startBtn.addEventListener("click", resetGame);
+startBtn.style.display="inline-block";
 </script>
 </body>
 </html>
