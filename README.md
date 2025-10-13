@@ -1,5 +1,5 @@
 # DodgeCat
-A fun little game project that I work on when I'm bored, during my quest to become a less-shit programmer.
+A fun little game project that I work on when I'm bored, during my quest to become a less-shit programmer and learn a thing or two.
 
 Play at - https://ross-dev-bg.github.io/DodgeCat
 
