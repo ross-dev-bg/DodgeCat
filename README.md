@@ -5,13 +5,13 @@ Dodge the bullets and see how long your kitty can survive.
 
 Supports WASD, Arrow and Touch movement for mobile devices.
 
-Play at - https://ross-dev-bg.github.io/DodgeCat
+## Play at - https://ross-dev-bg.github.io/DodgeCat
 
 Good luck and have fun!
 
-### © 2025 Ross-Dev-BG. All rights reserved.
+#
+© 2025 Ross-Dev-BG. All rights reserved.
 
-### Credits
 Music - YouFulca - https://wingless-seraph.net/en/material-music.html
 
 SFX - SOUND_GARAGE - https://pixabay.com/users/sound_garage-47313534/
