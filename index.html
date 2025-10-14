@@ -83,7 +83,7 @@
 
 <div id="gameContainer">
   <canvas id="spriteCanvas"></canvas>
-  <div id="versionText">Version 0.3 Alpha</div>
+  <div id="versionText">Version 0.3 Alpha © 2025 Ross-Dev-BG. All rights reserved.</div>
   <canvas id="game" width="300" height="300"></canvas>
   <div>
     <button id="startBtn">Start</button>
@@ -114,7 +114,6 @@ xx..............xx....xx..............xx....xx..............xx....xx............
 xx..............xx....xx..............xx....xx..............xx....xx....................xxxxxxxxxxxxxxxxxx....xx....................xxxxxxxxxxxxxxxxxx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx........xxxxxxxx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx........xxxxxxxx....xx....................xx....................xx..............xx............xx........
-xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
@@ -209,6 +208,34 @@ const shieldSprite = [
   "....x....."
 ];
 
+/* ---------------- ORB PICKUP (new) ---------------- */
+// small sprite placeholder (you said you'll replace later)
+const orbSprite = [
+  ".x..xx.x..",
+  ".x.x..x.x.",
+  "x..x..x.x.",
+  "x..x.x.x.x",
+  "x..xx....x",
+  "xxx.....x.",
+  "x.......x.",
+  ".x....xx..",
+  "..x.xx..x.",
+  "...x..xx.."
+];
+
+let orbPickups = [];   // pickups sitting in the box (last 5s)
+let orbs = [];         // collected orbiting orbs
+let orbSpawnTimer = 0;
+let orbBaseAngle = 0;  // shared base angle so orbs are evenly spaced
+const ORB_PICKUP_SPAWN_INTERVAL = 5; // spawn a pickup every 5s
+const ORB_PICKUP_LIFETIME = 5; // pickup exists in box for 5s
+const ORB_ORBIT_DURATION = 25; // orb lasts 25s when collected
+const ORB_DISTANCE = 28; // distance from player center
+const ORB_SIZE = 10;
+const ORB_MAX = 3;
+const ORB_ANGULAR_SPEED = 2.0; // radians per second (rotation speed)
+
+/* ---------------- GAME STATE ---------------- */
 let player, projectiles, openings, keys;
 let timeSurvived, gameOver, projectileSpeed, spawnInterval, lastSpawn, lastTime;
 let highScores = [];
@@ -227,6 +254,12 @@ function resetGame() {
   projectiles = [];
   openings = [];
   resetShield();
+  // reset orb system
+  orbPickups = [];
+  orbs = [];
+  orbSpawnTimer = 0;
+  orbBaseAngle = 0;
+
   keys = {};
   timeSurvived = 0;
   gameOver = false;
@@ -312,6 +345,100 @@ function spawnShield() {
   shield.timer = 0;
 }
 
+/* ---------------- ORB SPAWNING & COLLECTION ---------------- */
+function spawnOrbPickup() {
+  // spawn at least 50px away from any box wall
+  const margin = boxOffset + 50;
+  const maxX = boxOffset + boxSize - 50;
+  const maxY = boxOffset + boxSize - 50;
+
+  const x = margin + Math.random() * (maxX - margin);
+  const y = margin + Math.random() * (maxY - margin);
+
+  orbPickups.push({ x, y, size: ORB_SIZE, timer: 0 });
+}
+
+function updateOrbPickups(delta) {
+  // delta in seconds
+  for (const p of orbPickups) p.timer += delta;
+
+  // detect pickup by player
+  for (const p of orbPickups) {
+    const dx = player.x - p.x;
+    const dy = player.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < playerSize/2 + p.size/2) {
+      // collect
+      collectOrb();
+      p.timer = ORB_PICKUP_LIFETIME + 1; // mark for removal
+    }
+  }
+
+  // keep only pickups that haven't expired
+  orbPickups = orbPickups.filter(p => p.timer < ORB_PICKUP_LIFETIME);
+}
+
+function collectOrb() {
+  // When collecting:
+  // - if less than ORB_MAX, push a new orb with full duration
+  // - if already ORB_MAX, find orb with least remaining and replace it (refresh to full)
+  if (orbs.length < ORB_MAX) {
+    orbs.push(createOrb());
+  } else {
+    // find index with smallest remaining
+    let idx = 0;
+    for (let i = 1; i < orbs.length; i++) {
+      if (orbs[i].remaining < orbs[idx].remaining) idx = i;
+    }
+    // replace that orb with fresh one (keeps array length so spacing stays consistent)
+    orbs[idx] = createOrb();
+  }
+}
+
+function createOrb() {
+  return {
+    // angle not per-orb now — position computed from orbBaseAngle + i*spacing
+    distance: ORB_DISTANCE,
+    size: ORB_SIZE,
+    remaining: ORB_ORBIT_DURATION,
+    x: 0,
+    y: 0
+  };
+}
+
+function updateOrbs(delta) {
+  // update shared base angle: rotates all orbs together
+  orbBaseAngle += ORB_ANGULAR_SPEED * delta;
+
+  // update remainder timers and compute positions so collisions work in updateProjectiles
+  const n = orbs.length;
+  const spacing = n > 0 ? (2 * Math.PI) / n : 0;
+  for (let i = orbs.length - 1; i >= 0; i--) {
+    const orb = orbs[i];
+    orb.remaining -= delta;
+    // compute angle and position
+    const angle = orbBaseAngle + i * spacing;
+    orb.x = player.x + Math.cos(angle) * orb.distance;
+    orb.y = player.y + Math.sin(angle) * orb.distance;
+    // if expired, remove
+    if (orb.remaining <= 0) {
+      orbs.splice(i, 1);
+    }
+  }
+}
+
+function resetShield() {
+  shield = {
+    active: false,
+    visible: false,
+    x: 0,
+    y: 0,
+    size: 10,
+    timer: 0,
+    duration: 0
+  };
+}
+
 function updatePlayer() {
   const speed = 3;
   let dx = 0, dy = 0;
@@ -360,6 +487,19 @@ function updateProjectiles() {
 
       if (withinBox && onOutline) {
         exited = true; // remove projectile, absorbed by shield
+      }
+    }
+
+    // Check orb collisions (consume projectiles)
+    if (!exited && orbs.length > 0) {
+      for (const orb of orbs) {
+        const dx = p.x - orb.x;
+        const dy = p.y - orb.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < orb.size / 2 + projectileSize / 2) {
+          exited = true; // projectile absorbed by orb
+          break;
+        }
       }
     }
 
@@ -412,18 +552,6 @@ function activateShield() {
   
   shield.duration = 5 + Math.random() * 5; // 5–10 seconds
   //shield.duration = 99999; //for testing game state
-}
-
-function resetShield() {
-  shield = {
-    active: false,
-    visible: false,
-    x: 0,
-    y: 0,
-    size: 10,
-    timer: 0,
-    duration: 0
-  };
 }
 
 function checkCollision() {
@@ -489,12 +617,59 @@ function drawShield() {
 
 }
 
+/* ---------------- DRAW ORBS & PICKUPS ---------------- */
+function drawOrbPickups() {
+  ctx.fillStyle = "orange";
+  for (const p of orbPickups) {
+    const pixelSize = p.size / orbSprite.length;
+    for (let row = 0; row < orbSprite.length; row++) {
+      for (let col = 0; col < orbSprite[row].length; col++) {
+        if (orbSprite[row][col] === "x") {
+          ctx.fillRect(
+            p.x - p.size / 2 + col * pixelSize,
+            p.y - p.size / 2 + row * pixelSize,
+            pixelSize,
+            pixelSize
+          );
+        }
+      }
+    }
+  }
+}
+
+function drawOrbs() {
+  const n = orbs.length;
+  if (n === 0) return;
+
+  // We already computed orb.x/orb.y in updateOrbs
+  for (let i = 0; i < n; i++) {
+    const orb = orbs[i];
+    ctx.fillStyle = "orange";
+    const pixelSize = orb.size / orbSprite.length;
+    for (let row = 0; row < orbSprite.length; row++) {
+      for (let col = 0; col < orbSprite[row].length; col++) {
+        if (orbSprite[row][col] === "x") {
+          ctx.fillRect(
+            orb.x - orb.size / 2 + col * pixelSize,
+            orb.y - orb.size / 2 + row * pixelSize,
+            pixelSize,
+            pixelSize
+          );
+        }
+      }
+    }
+  }
+}
+
+/* ---------------- MAIN DRAW/LOOP ---------------- */
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBox();
   drawPlayer();
   drawProjectiles();
   drawShield();
+  drawOrbPickups();
+  drawOrbs();
 }
 
 function loop() {
@@ -535,6 +710,15 @@ function loop() {
   spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*70);
   
   updateShield(delta);
+
+  // ORB updates
+  orbSpawnTimer += delta;
+  if (orbSpawnTimer >= ORB_PICKUP_SPAWN_INTERVAL) {
+    spawnOrbPickup();
+    orbSpawnTimer = 0;
+  }
+  updateOrbPickups(delta);
+  updateOrbs(delta);
 
   draw();
   requestAnimationFrame(loop);
