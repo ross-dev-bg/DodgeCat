@@ -530,22 +530,17 @@ function updateProjectiles(delta) {
       exited = true;
     }
 
-    // Check for shield absorption (only if active)
+  // Check for shield absorption (only if active)
     if (!exited && shield.active) {
       const dx = p.x - shield.x;
       const dy = p.y - shield.y;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
       const halfSize = 15;
-      const outline = 1;
 
-      const withinBox = absX <= halfSize && absY <= halfSize;
-      const onOutline = Math.abs(absX - halfSize) <= outline || Math.abs(absY - halfSize) <= outline;
-
-      if (withinBox && onOutline) {
-        exited = true; // remove projectile, absorbed by shield
+      if (Math.abs(dx) <= halfSize && Math.abs(dy) <= halfSize) {
+        exited = true; // projectile absorbed by shield
       }
     }
+
 
     // Check orb collisions (consume projectiles)
     if (!exited && orbs.length > 0) {
