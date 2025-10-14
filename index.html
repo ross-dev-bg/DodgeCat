@@ -208,8 +208,6 @@ const shieldSprite = [
   "....x....."
 ];
 
-/* ---------------- ORB PICKUP (new) ---------------- */
-// small sprite placeholder
 const orbSprite = [
   ".x..xx.x..",
   ".x.x..x.x.",
@@ -529,7 +527,7 @@ function updateShield(delta) {
     }
   }
 
-  // Detect pickup by player
+  // Detect pickup
   if (shield.visible) {
     const dx = player.x - shield.x;
     const dy = player.y - shield.y;
@@ -641,7 +639,6 @@ function drawOrbs() {
   const n = orbs.length;
   if (n === 0) return;
 
-  // We already computed orb.x/orb.y in updateOrbs
   for (let i = 0; i < n; i++) {
     const orb = orbs[i];
     ctx.fillStyle = "orange";
