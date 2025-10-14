@@ -7,3 +7,5 @@ Supports WASD, Arrow and Touch movement for mobile devices.
 Play at - https://ross-dev-bg.github.io/DodgeCat
 
 Good luck and have fun!
+
+© 2025 Ross-Dev-BG. All rights reserved.
