@@ -83,7 +83,8 @@
 
 <div id="gameContainer">
   <canvas id="spriteCanvas"></canvas>
-  <div id="versionText">Version 0.3 Alpha © 2025 Ross-Dev-BG. All rights reserved.</div>
+  <div id="versionText">Version 0.4 Alpha © 2025 Ross-Dev-BG. All rights reserved.</div>
+  <div id="muteSound" style="font-weight:bold; color:white; cursor:pointer; margin-top:10px; font-size:20px;">MUTE SOUND</div>
   <canvas id="game" width="300" height="300"></canvas>
   <div>
     <button id="startBtn">Start</button>
@@ -221,6 +222,15 @@ const orbSprite = [
   "...x..xx.."
 ];
 
+// ---------------- SOUND SETUP ----------------
+const bgm = new Audio("sound/bgm.mp3");
+bgm.loop = true;
+bgm.volume = 0.1; // adjust volume 0.0 - 1.0
+let musicPlaying = false;
+
+const deathSound = new Audio("sound/death.mp3");
+deathSound.volume = 0.05; // adjust volume (0.0 to 1.0)
+
 let orbPickups = [];   // pickups sitting in the box (last 5s)
 let orbs = [];         // collected orbiting orbs
 let orbSpawnTimer = 0;
@@ -248,6 +258,17 @@ let shield = {
 };
 
 function resetGame() {
+  if (musicPlaying) {
+    bgm.pause();
+    bgm.currentTime = 0;
+  }
+
+  bgm.play().then(() => {
+    musicPlaying = true;
+  }).catch(err => {
+    console.warn("Autoplay blocked until user interaction:", err);
+  });
+
   player = { x: canvas.width/2, y: canvas.height/2, color: "white" };
   projectiles = [];
   openings = [];
@@ -261,7 +282,10 @@ function resetGame() {
   keys = {};
   timeSurvived = 0;
   gameOver = false;
-  projectileSpeed = 2;
+  
+  baseProjectileSpeed = 100;   // starting speed in px/sec
+  projectileSpeed = baseProjectileSpeed;
+  
   spawnInterval = 2000;
   lastSpawn = 0;
   lastTime = Date.now();
@@ -318,19 +342,42 @@ function spawnProjectile() {
   const numToSpawn = 3 + Math.floor(timeSurvived / 10);
 
   for (let i = 0; i < numToSpawn; i++) {
-    const delay = i * 100;
+    const delay = i * 100; // stagger appearance in ms
     setTimeout(() => {
       let x, y, vx, vy, pos;
-      if (side === "top") { x = boxOffset + Math.random() * boxSize; y = boxOffset; vx = 0; vy = projectileSpeed; pos = x; }
-      else if (side === "bottom") { x = boxOffset + Math.random() * boxSize; y = boxOffset + boxSize; vx = 0; vy = -projectileSpeed; pos = x; }
-      else if (side === "left") { x = boxOffset; y = boxOffset + Math.random() * boxSize; vx = projectileSpeed; vy = 0; pos = y; }
-      else { x = boxOffset + boxSize; y = boxOffset + Math.random() * boxSize; vx = -projectileSpeed; vy = 0; pos = y; }
+      // vx/vy should be pixels per second
+      if (side === "top") {
+        x = boxOffset + Math.random() * boxSize;
+        y = boxOffset;
+        vx = 0;
+        vy = projectileSpeed; // moving down, px/sec
+        pos = x;
+      } else if (side === "bottom") {
+        x = boxOffset + Math.random() * boxSize;
+        y = boxOffset + boxSize;
+        vx = 0;
+        vy = -projectileSpeed; // moving up
+        pos = x;
+      } else if (side === "left") {
+        x = boxOffset;
+        y = boxOffset + Math.random() * boxSize;
+        vx = projectileSpeed; // moving right
+        vy = 0;
+        pos = y;
+      } else { // right
+        x = boxOffset + boxSize;
+        y = boxOffset + Math.random() * boxSize;
+        vx = -projectileSpeed; // moving left
+        vy = 0;
+        pos = y;
+      }
 
       openings.push({ side, pos, lastUsed: Date.now() });
       projectiles.push({ x, y, vx, vy });
     }, delay);
   }
 }
+
 
 function spawnShield() {
   const margin = boxOffset + 50;
@@ -437,42 +484,54 @@ function resetShield() {
   };
 }
 
-function updatePlayer() {
-  const speed = 3;
+function updatePlayer(delta) {
+  const speed = 200; // pixels per second
   let dx = 0, dy = 0;
+
   if (keys["ArrowUp"] || keys["w"]) dy -= 1;
   if (keys["ArrowDown"] || keys["s"]) dy += 1;
   if (keys["ArrowLeft"] || keys["a"]) dx -= 1;
   if (keys["ArrowRight"] || keys["d"]) dx += 1;
 
   if (dx !== 0 || dy !== 0) {
-    const len = Math.sqrt(dx*dx + dy*dy);
-    dx = dx / len * speed;
-    dy = dy / len * speed;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    dx = (dx / len) * speed * delta;
+    dy = (dy / len) * speed * delta;
   }
 
   player.x += dx;
   player.y += dy;
 
-  const min = boxOffset + playerSize/2;
-  const max = boxOffset + boxSize - playerSize/2;
+  const min = boxOffset + playerSize / 2;
+  const max = boxOffset + boxSize - playerSize / 2;
   player.x = Math.max(min, Math.min(max, player.x));
   player.y = Math.max(min, Math.min(max, player.y));
 }
 
-function updateProjectiles() {
+function updateProjectiles(delta) {
   const newOpenings = [];
   projectiles = projectiles.filter(p => {
-    p.x += p.vx;
-    p.y += p.vy;
+    // Move using seconds-based delta
+    p.x += p.vx * delta;
+    p.y += p.vy * delta;
+
     let exited = false;
-    if (p.vy > 0 && p.y >= boxOffset + boxSize) { newOpenings.push({ side: "bottom", pos: p.x, lastUsed: Date.now() }); exited = true; }
-    else if (p.vy < 0 && p.y <= boxOffset) { newOpenings.push({ side: "top", pos: p.x, lastUsed: Date.now() }); exited = true; }
-    else if (p.vx > 0 && p.x >= boxOffset + boxSize) { newOpenings.push({ side: "right", pos: p.y, lastUsed: Date.now() }); exited = true; }
-    else if (p.vx < 0 && p.x <= boxOffset) { newOpenings.push({ side: "left", pos: p.y, lastUsed: Date.now() }); exited = true; }
-	
-	// Check for shield absorption (only if active)
-    if (shield.active) {
+    if (p.vy > 0 && p.y >= boxOffset + boxSize) {
+      newOpenings.push({ side: "bottom", pos: p.x, lastUsed: Date.now() });
+      exited = true;
+    } else if (p.vy < 0 && p.y <= boxOffset) {
+      newOpenings.push({ side: "top", pos: p.x, lastUsed: Date.now() });
+      exited = true;
+    } else if (p.vx > 0 && p.x >= boxOffset + boxSize) {
+      newOpenings.push({ side: "right", pos: p.y, lastUsed: Date.now() });
+      exited = true;
+    } else if (p.vx < 0 && p.x <= boxOffset) {
+      newOpenings.push({ side: "left", pos: p.y, lastUsed: Date.now() });
+      exited = true;
+    }
+
+    // Check for shield absorption (only if active)
+    if (!exited && shield.active) {
       const dx = p.x - shield.x;
       const dy = p.y - shield.y;
       const absX = Math.abs(dx);
@@ -675,6 +734,15 @@ function loop() {
   lastTime = now;
 
   if (gameOver) {
+  
+    if (musicPlaying) {
+      bgm.pause();
+      bgm.currentTime = 0;
+      musicPlaying = false;
+    }   
+	
+    if (!isMuted) deathSound.play();
+  
     openings = [];
     document.getElementById("timer").style.display = "none";
 
@@ -693,17 +761,19 @@ function loop() {
     return;
   }
 
-  updatePlayer();
+  updatePlayer(delta);
   if(now-lastSpawn>spawnInterval){spawnProjectile();lastSpawn=now;}
 
-  updateProjectiles();
+  updateProjectiles(delta);
   checkCollision();
   cleanupOpenings();
 
   timeSurvived += delta;
   document.getElementById("timer").textContent=`Time: ${timeSurvived.toFixed(1)}s`;
 
-  projectileSpeed = 0.2*Math.min(5,2+Math.sqrt(timeSurvived)*0.3);
+  // projectile speed in px/sec: base + growth based on time survived
+  projectileSpeed = baseProjectileSpeed + Math.min(150, Math.sqrt(timeSurvived) * 5); 
+
   spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*70);
   
   updateShield(delta);
@@ -754,6 +824,28 @@ function handleTouch(e){
 restartBtn.addEventListener("click", resetGame);
 startBtn.addEventListener("click", resetGame);
 startBtn.style.display="inline-block";
+
+const muteText = document.getElementById("muteSound");
+
+// Load saved mute state
+let isMuted = localStorage.getItem("dodgecatMuted") === "true";
+updateMuteUI();
+
+// Apply initial mute state
+bgm.muted = isMuted;
+
+// Click handler
+muteText.addEventListener("click", () => {
+  isMuted = !isMuted;
+  bgm.muted = isMuted;
+  localStorage.setItem("dodgecatMuted", isMuted);
+  updateMuteUI();
+});
+
+function updateMuteUI() {
+  muteText.style.color = isMuted ? "red" : "white";
+}
+
 </script>
 </body>
 </html>
