@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>DodgeCat v0.2</title>
+<title>DodgeCat</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
   body {
@@ -68,12 +68,22 @@
   button:hover {
     background: #ccc;
   }
+  
+  #versionText {
+    font-size: 14px;
+    color: white;
+    margin: 4px 0; 
+    text-align: center;
+  font-family: monospace;
+  }
+  
 </style>
 </head>
 <body>
 
 <div id="gameContainer">
   <canvas id="spriteCanvas"></canvas>
+  <div id="versionText">Version 0.3 Alpha</div>
   <canvas id="game" width="300" height="300"></canvas>
   <div>
     <button id="startBtn">Start</button>
@@ -186,14 +196,37 @@ const movingRightDesign = [
 "x....x....x..x","x....x....x..x"
 ];
 
+const shieldSprite = [
+  "....x.....",
+  ".....x....",
+  "....x.xx..",
+  "x..x....x.",
+  ".xx......x",
+  ".xx......x",
+  "x..x....x.",
+  "....x.xx..",
+  ".....x....",
+  "....x....."
+];
+
 let player, projectiles, openings, keys;
 let timeSurvived, gameOver, projectileSpeed, spawnInterval, lastSpawn, lastTime;
 let highScores = [];
+let shield = {
+  active: false,
+  visible: false, 
+  x: 0,
+  y: 0,
+  size: 10,  
+  timer: 0,    
+  duration: 0 
+};
 
 function resetGame() {
   player = { x: canvas.width/2, y: canvas.height/2, color: "white" };
   projectiles = [];
   openings = [];
+  resetShield();
   keys = {};
   timeSurvived = 0;
   gameOver = false;
@@ -268,6 +301,17 @@ function spawnProjectile() {
   }
 }
 
+function spawnShield() {
+  const margin = boxOffset + 50;
+  const maxX = boxOffset + boxSize - 50;
+  const maxY = boxOffset + boxSize - 50;
+  
+  shield.x = margin + Math.random() * (maxX - margin);
+  shield.y = margin + Math.random() * (maxY - margin);
+  shield.visible = true;
+  shield.timer = 0;
+}
+
 function updatePlayer() {
   const speed = 3;
   let dx = 0, dy = 0;
@@ -301,9 +345,85 @@ function updateProjectiles() {
     else if (p.vy < 0 && p.y <= boxOffset) { newOpenings.push({ side: "top", pos: p.x, lastUsed: Date.now() }); exited = true; }
     else if (p.vx > 0 && p.x >= boxOffset + boxSize) { newOpenings.push({ side: "right", pos: p.y, lastUsed: Date.now() }); exited = true; }
     else if (p.vx < 0 && p.x <= boxOffset) { newOpenings.push({ side: "left", pos: p.y, lastUsed: Date.now() }); exited = true; }
+	
+	// Check for shield absorption (only if active)
+    if (shield.active) {
+      const dx = p.x - shield.x;
+      const dy = p.y - shield.y;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const halfSize = 15;
+      const outline = 1;
+
+      const withinBox = absX <= halfSize && absY <= halfSize;
+      const onOutline = Math.abs(absX - halfSize) <= outline || Math.abs(absY - halfSize) <= outline;
+
+      if (withinBox && onOutline) {
+        exited = true; // remove projectile, absorbed by shield
+      }
+    }
+
     return !exited;
   });
   openings.push(...newOpenings);
+}
+
+function updateShield(delta) {
+  // If shield inactive and invisible, count up until eligible to spawn
+  if (!shield.visible && !shield.active) {
+    shield.timer += delta;
+    if (shield.timer > 30) {
+      // After 30 seconds, random chance to spawn (about once every 10s)
+      if (Math.random() < delta / 10) {
+        spawnShield();
+      }
+    }
+  }
+
+  // If active, count down its lifespan
+  if (shield.active) {
+    shield.timer += delta;
+    if (shield.timer > shield.duration) {
+      shield.active = false;
+      shield.timer = 0;
+    }
+  }
+
+  // Detect pickup by player
+  if (shield.visible) {
+    const dx = player.x - shield.x;
+    const dy = player.y - shield.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < playerSize / 2 + shield.size / 2) {
+      activateShield();
+    }
+  }
+  
+  if (shield.visible && shield.timer > 10) {
+    shield.visible = false;
+    shield.timer = 0;
+  }
+}
+
+function activateShield() {
+  shield.visible = false;
+  shield.active = true;
+  shield.timer = 0;
+  
+  shield.duration = 5 + Math.random() * 5; // 5–10 seconds
+  //shield.duration = 99999; //for testing game state
+}
+
+function resetShield() {
+  shield = {
+    active: false,
+    visible: false,
+    x: 0,
+    y: 0,
+    size: 10,
+    timer: 0,
+    duration: 0
+  };
 }
 
 function checkCollision() {
@@ -327,11 +447,54 @@ function drawProjectiles() {
   });
 }
 
+function drawShield() {
+
+  if (shield.visible) {
+    const scale = 1 + 0.1 * Math.sin(Date.now() / 300); // pulsates between 0.9 and 1.1
+    const pixelSize = (shield.size * scale) / 10; // scale sprite to shield.size with pulse
+	
+    ctx.fillStyle = "cyan";
+
+    for (let row = 0; row < shieldSprite.length; row++) {
+      for (let col = 0; col < shieldSprite[row].length; col++) {
+        if (shieldSprite[row][col] === "x") {
+          ctx.fillRect(
+            shield.x - shield.size / 2 + col * pixelSize,
+            shield.y - shield.size / 2 + row * pixelSize,
+            pixelSize,
+            pixelSize
+          );
+        }
+      }
+    }
+  }
+
+  if (shield.active) {
+    // Draw faint interior (always visible)
+    ctx.fillStyle = "rgba(0,255,255,0.1)";
+    ctx.fillRect(shield.x - 14, shield.y - 14, 28, 28);
+
+    // Decide if outline should blink
+    let drawOutline = true;
+    if (shield.duration - shield.timer <= 3) {
+      drawOutline = Math.floor(shield.timer) % 2 === 0; // blink every second
+    }
+
+    if (drawOutline) {
+      ctx.strokeStyle = "cyan";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(shield.x - 15, shield.y - 15, 30, 30);
+    }
+  }
+
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBox();
   drawPlayer();
   drawProjectiles();
+  drawShield();
 }
 
 function loop() {
@@ -368,8 +531,10 @@ function loop() {
   timeSurvived += delta;
   document.getElementById("timer").textContent=`Time: ${timeSurvived.toFixed(1)}s`;
 
-  projectileSpeed = 0.2*Math.min(5,2+Math.sqrt(timeSurvived)*0.5);
-  spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*100);
+  projectileSpeed = 0.2*Math.min(5,2+Math.sqrt(timeSurvived)*0.3);
+  spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*70);
+  
+  updateShield(delta);
 
   draw();
   requestAnimationFrame(loop);
