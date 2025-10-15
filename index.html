@@ -83,7 +83,7 @@
 
 <div id="gameContainer">
   <canvas id="spriteCanvas"></canvas>
-  <div id="versionText">Version 0.4 Alpha © 2025 Ross-Dev-BG. All rights reserved.</div>
+  <div id="versionText">Version 0.5 Beta © 2025 Ross-Dev-BG. All rights reserved.</div>
   <div id="muteSound" style="font-weight:bold; color:white; cursor:pointer; margin-top:10px; font-size:20px;">MUTE SOUND</div>
   <canvas id="game" width="300" height="300"></canvas>
   <div>
@@ -109,8 +109,8 @@ xx..............xx....xx..............xx....xx..............xx....xx............
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
-xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
-xx..............xx....xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx....................xx..............xx............xx........
+xx..............xx....xx..............xx....xx..............xx....xx....................xx....................xx....................xx..............xx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx....................xxxxxxxxxxxxxxxxxx....xx....................xxxxxxxxxxxxxxxxxx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx....................xxxxxxxxxxxxxxxxxx....xx....................xxxxxxxxxxxxxxxxxx............xx........
 xx..............xx....xx..............xx....xx..............xx....xx........xxxxxxxx....xx....................xx....................xx..............xx............xx........
@@ -222,6 +222,19 @@ const orbSprite = [
   "...x..xx.."
 ];
 
+const heartSprite = [
+  "..x....x..",
+  ".xxx..xxx.",
+  "xxxxx.xxxxx",
+  "xxxxxxxxxxx",
+  ".xxxxxxxxx.",
+  "..xxxxxxx..",
+  "...xxxxx...",
+  "....xxx....",
+  ".....x....."
+];
+
+
 // ---------------- SOUND SETUP ----------------
 const bgm = new Audio("sound/bgm.mp3");
 bgm.loop = true;
@@ -243,6 +256,10 @@ const ORB_SIZE = 10;
 const ORB_MAX = 3;
 const ORB_ANGULAR_SPEED = 2.0; // radians per second (rotation speed)
 
+let isInvulnerable = false;
+let invulnerableTimer = 0;
+const INVULNERABLE_DURATION = 2000; // 2 seconds in ms
+
 /* ---------------- GAME STATE ---------------- */
 let player, projectiles, openings, keys;
 let timeSurvived, gameOver, projectileSpeed, spawnInterval, lastSpawn, lastTime;
@@ -256,6 +273,18 @@ let shield = {
   timer: 0,    
   duration: 0 
 };
+
+let touchTarget = null; // global target for touch movement
+
+let hasDisplayedGameOver = false;
+let isPaused = false;
+let lastTapTime = 0;
+
+// --- LIFE SYSTEM & PICKUP PROGRESS ---
+let lives = 9;
+const MAX_LIVES = 9;
+let pickupsCollected = 0;
+const PICKUPS_PER_LIFE = 10;
 
 function resetGame() {
   if (musicPlaying) {
@@ -273,6 +302,12 @@ function resetGame() {
   projectiles = [];
   openings = [];
   resetShield();
+  
+  hasDisplayedGameOver = false;
+  
+  lives = 9;
+  pickupsCollected = 0;
+
   // reset orb system
   orbPickups = [];
   orbs = [];
@@ -438,6 +473,13 @@ function collectOrb() {
     // replace that orb with fresh one (keeps array length so spacing stays consistent)
     orbs[idx] = createOrb();
   }
+  
+  pickupsCollected++;
+  if (pickupsCollected >= PICKUPS_PER_LIFE) {
+    pickupsCollected = 0;
+    if (lives < MAX_LIVES) lives++;
+  }
+
 }
 
 function createOrb() {
@@ -488,15 +530,31 @@ function updatePlayer(delta) {
   const speed = 200; // pixels per second
   let dx = 0, dy = 0;
 
-  if (keys["ArrowUp"] || keys["w"]) dy -= 1;
-  if (keys["ArrowDown"] || keys["s"]) dy += 1;
-  if (keys["ArrowLeft"] || keys["a"]) dx -= 1;
-  if (keys["ArrowRight"] || keys["d"]) dx += 1;
+  if(touchTarget) {
+    dx = touchTarget.x - player.x;
+    dy = touchTarget.y - player.y;
 
-  if (dx !== 0 || dy !== 0) {
-    const len = Math.sqrt(dx * dx + dy * dy);
-    dx = (dx / len) * speed * delta;
-    dy = (dy / len) * speed * delta;
+    // Smooth movement: move toward target with max speed
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if(dist > 1){ // avoid jitter when very close
+      dx = (dx / dist) * speed * delta;
+      dy = (dy / dist) * speed * delta;
+    } else {
+      dx = 0;
+      dy = 0;
+    }
+  } else {
+    // fallback for keyboard
+    if (keys["ArrowUp"] || keys["w"]) dy -= 1;
+    if (keys["ArrowDown"] || keys["s"]) dy += 1;
+    if (keys["ArrowLeft"] || keys["a"]) dx -= 1;
+    if (keys["ArrowRight"] || keys["d"]) dx += 1;
+
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.sqrt(dx * dx + dy * dy);
+      dx = (dx / len) * speed * delta;
+      dy = (dy / len) * speed * delta;
+    }
   }
 
   player.x += dx;
@@ -604,14 +662,46 @@ function activateShield() {
   
   shield.duration = 5 + Math.random() * 5; // 5–10 seconds
   //shield.duration = 99999; //for testing game state
+  
+  pickupsCollected++;
+  if (pickupsCollected >= PICKUPS_PER_LIFE) {
+    pickupsCollected = 0;
+    if (lives < MAX_LIVES) lives++;
+  }
+
 }
 
 function checkCollision() {
   for (const p of projectiles) {
-    if (Math.abs(p.x - player.x) < (playerSize/2 + projectileSize/2) &&
-        Math.abs(p.y - player.y) < (playerSize/2 + projectileSize/2)) {
-      gameOver = true;
-      player.color = "red";
+    if (Math.abs(p.x - player.x) < (playerSize / 2 + projectileSize / 2) &&
+      Math.abs(p.y - player.y) < (playerSize / 2 + projectileSize / 2)) {
+
+      // Skip if currently invulnerable
+      if (isInvulnerable) continue;
+
+      // Lose a life
+      lives--;
+
+      if (lives <= 0) {
+        gameOver = true;
+        player.color = "red";
+      } else {
+          // Trigger 2-second invulnerability if not on last life
+          isInvulnerable = true;
+          invulnerableTimer = performance.now();
+
+          // Start flashing effect
+          const flashInterval = setInterval(() => {
+            player.color = (player.color === "white") ? "black" : "white";
+          }, 150);
+
+          // Stop invulnerability after 2 seconds
+          setTimeout(() => {
+            clearInterval(flashInterval);
+            player.color = "white";
+            isInvulnerable = false;
+          }, INVULNERABLE_DURATION);
+        }
     }
   }
 }
@@ -712,10 +802,59 @@ function drawOrbs() {
   }
 }
 
+
+function drawLives() {
+  const heartSize = 10;
+  const startX = boxOffset - heartSize - 10;
+  const startY = boxOffset + boxSize - heartSize;
+
+  for (let i = 0; i < lives; i++) {
+    const y = startY - i * (heartSize + 2);
+    drawHeart(startX, y, heartSize);
+  }
+}
+
+function drawHeart(x, y, size) {
+  const pixelSize = size / heartSprite.length;
+  ctx.fillStyle = "red";
+  for (let row = 0; row < heartSprite.length; row++) {
+    for (let col = 0; col < heartSprite[row].length; col++) {
+      if (heartSprite[row][col] === "x") {
+        ctx.fillRect(
+          x + col * pixelSize,
+          y + row * pixelSize,
+          pixelSize,
+          pixelSize
+        );
+      }
+    }
+  }
+}
+
+function drawPickupBar() {
+  const barWidth = 10;
+  const barHeight = boxSize;
+  const startX = boxOffset + boxSize + 10;
+  const startY = boxOffset;
+
+  // outline
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(startX, startY, barWidth, barHeight);
+
+  // fill
+  const fillHeight = (pickupsCollected / PICKUPS_PER_LIFE) * barHeight;
+  ctx.fillStyle = "white";
+  ctx.fillRect(startX, startY + barHeight - fillHeight, barWidth, fillHeight);
+}
+
+
 /* ---------------- MAIN DRAW/LOOP ---------------- */
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBox();
+  drawLives();
+  drawPickupBar();
   drawPlayer();
   drawProjectiles();
   drawShield();
@@ -727,33 +866,61 @@ function loop() {
   const now = Date.now();
   const delta = (now - lastTime)/1000;
   lastTime = now;
-
-  if (gameOver) {
   
+  // ---- Pause Handling ----
+  if (isPaused) {
+    draw(); // still draw current frame
+    // Draw overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "24px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2 - 20);
+    ctx.font = "10px monospace";
+    ctx.fillText("Press ESC or Double Tap to Resume", canvas.width / 2, canvas.height / 2 + 10);
+    requestAnimationFrame(loop);
+    return;
+  }
+
+
+if (gameOver) {
+
+  if (!hasDisplayedGameOver) {
+    hasDisplayedGameOver = true; // ✅ ensures we only run this once
+
     if (musicPlaying) {
       bgm.pause();
       bgm.currentTime = 0;
       musicPlaying = false;
-    }   
-	
+    }
+
     if (!isMuted) deathSound.play();
-  
+
     openings = [];
     document.getElementById("timer").style.display = "none";
 
     highScores.push(timeSurvived);
-    highScores.sort((a,b)=>b-a);
-    if (highScores.length>5) highScores.length=5;
+    highScores.sort((a, b) => b - a);
+    if (highScores.length > 5) highScores.length = 5;
 
     let scoreHTML = '<div style="color:red;font-size:20px;">GAME OVER</div>';
     scoreHTML += `<div>Time survived: ${timeSurvived.toFixed(1)}s</div>`;
     scoreHTML += '<div style="margin-top:8px;"><strong>Top 5 Scores</strong></div><ol>';
-    highScores.forEach(s=>scoreHTML+=`<li>${s.toFixed(1)}s</li>`);
+    highScores.forEach(s => scoreHTML += `<li>${s.toFixed(1)}s</li>`);
     scoreHTML += '</ol>';
 
     statusText.innerHTML = scoreHTML;
-    restartBtn.style.display="inline-block";
-    return;
+    restartBtn.style.display = "inline-block";
+  }
+
+  return;
+}
+
+  
+  if (isInvulnerable && performance.now() - invulnerableTimer > INVULNERABLE_DURATION) {
+    isInvulnerable = false;
+    player.color = "white";
   }
 
   updatePlayer(delta);
@@ -786,8 +953,32 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-window.addEventListener("keydown", e=>keys[e.key]=true);
-window.addEventListener("keyup", e=>keys[e.key]=false);
+function togglePause() {
+  if (gameOver) return; // no pausing on game over
+  isPaused = !isPaused;
+
+  if (isPaused) {
+    // Pause audio and animations
+    bgm.pause();
+  } else {
+    // Resume audio and continue loop
+    if (!isMuted) bgm.play().catch(()=>{});
+    lastTime = Date.now(); // reset timing so delta doesn’t jump
+    requestAnimationFrame(loop);
+  }
+}
+
+window.addEventListener("keydown", e => {
+  // --- NEW: Pause with Escape ---
+  if (e.key === "Escape") {
+    togglePause();
+    return; // prevent movement keys from being processed on pause toggle
+  }
+
+  keys[e.key] = true;
+});
+
+window.addEventListener("keyup", e => keys[e.key] = false);
 
 canvas.addEventListener("touchstart", handleTouch);
 canvas.addEventListener("touchmove", handleTouch);
@@ -795,26 +986,40 @@ canvas.addEventListener("touchend", ()=>{ keys = {}; });
 
 function handleTouch(e){
   e.preventDefault(); // prevent scrolling
-  keys = {};
   const rect = canvas.getBoundingClientRect();
 
-  for (let t of e.touches) {
-    const touchX = t.clientX - rect.left;
-    const touchY = t.clientY - rect.top;
+  // Only track the first touch
+  const touch = e.touches[0];
+  const tx = touch.clientX - rect.left;
+  const ty = touch.clientY - rect.top;
 
-    const dx = touchX - player.x;
-    const dy = touchY - player.y;
-
-    // Normalize movement
-    const len = Math.sqrt(dx*dx + dy*dy);
-    if (len > 0) {
-      keys["ArrowRight"] = dx > 0;
-      keys["ArrowLeft"] = dx < 0;
-      keys["ArrowDown"] = dy > 0;
-      keys["ArrowUp"] = dy < 0;
-    }
-  }
+  touchTarget = { x: tx, y: ty };
 }
+
+canvas.addEventListener("touchend", ()=>{ 
+  touchTarget = null; // stop moving when touch ends
+});
+
+
+// --- NEW: Double-tap outside box to toggle pause ---
+canvas.addEventListener("touchstart", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const now = Date.now();
+  const timeSinceLastTap = now - lastTapTime;
+
+  // detect tap position
+  const touch = e.touches[0];
+  const tx = touch.clientX - rect.left;
+  const ty = touch.clientY - rect.top;
+
+  if (timeSinceLastTap < 300) {
+    togglePause();
+    e.preventDefault();
+  }
+
+  lastTapTime = now;
+}, { passive: false });
+
 
 restartBtn.addEventListener("click", resetGame);
 startBtn.addEventListener("click", resetGame);
