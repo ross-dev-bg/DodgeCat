@@ -3,7 +3,7 @@ A fun little game project that I work on when I'm bored, during my quest to beco
 
 Dodge the bullets and see how long your kitty can survive.
 
-Supports WASD, Arrow and Touch movement for mobile devices.
+Supports WASD, Arrow and Touch movement for mobile devices. ESC or Double Tap to Pause.
 
 ## Play at - https://ross-dev-bg.github.io/DodgeCat
 
