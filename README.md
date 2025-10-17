@@ -10,7 +10,7 @@ Supports WASD, Arrow and Touch movement for mobile devices. ESC or Double Tap to
 Good luck and have fun!
 
 #
-© 2025 Ross-Dev-BG. All rights reserved.
+© 2025 Ross-Dev-BG
 
 Music - YouFulca - https://wingless-seraph.net/en/material-music.html
 
