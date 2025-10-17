@@ -1,7 +1,7 @@
 # DodgeCat
 A fun little game project that I work on when I'm bored, during my quest to become a less-shit programmer and learn a thing or two.
 
-Dodge the bullets and see how long your kitty can survive.
+Dodge the bullets and see how long your kitty can survive. Eat the mice and fish to trigger helpful effects and earn progress towards regenerating your 9 lives.
 
 Supports WASD, Arrow and Touch movement for mobile devices. ESC or Double Tap to Pause.
 
