@@ -1,0 +1,79 @@
+body {
+  background: black;
+  color: white;
+  font-family: monospace;
+  text-align: center;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  touch-action: none;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+#gameContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: top center;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+#spriteCanvas {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  background: black;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#timer, #status {
+  font-size: 18px;
+  margin-top: 10px;
+}
+
+#status ol {
+  font-size: 14px;
+  padding-left: 20px;
+  margin: 5px 0;
+}
+
+button {
+  display: none;
+  padding: 6px 14px;
+  background: white;
+  color: black;
+  border: none;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 2px;
+}
+
+button:hover {
+  background: #ccc;
+}
+
+#versionText {
+  font-size: 14px;
+  color: white;
+  margin: 4px 0; 
+  text-align: center;
+  font-family: monospace;
+}
+
+#muteSound {
+  font-weight: bold; 
+  color: white; 
+  cursor: pointer; 
+  margin-top: 10px; 
+  font-size: 20px;
+}
