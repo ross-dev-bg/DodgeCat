@@ -14,5 +14,6 @@ Good luck and have fun!
 
 Music - YouFulca - https://wingless-seraph.net/en/material-music.html
 
-SFX - SOUND_GARAGE - https://pixabay.com/users/sound_garage-47313534/  
-    - freesound_community - https://pixabay.com/users/freesound_community-46691455/
+SFX  
+- SOUND_GARAGE - https://pixabay.com/users/sound_garage-47313534/  
+- freesound_community - https://pixabay.com/users/freesound_community-46691455/
