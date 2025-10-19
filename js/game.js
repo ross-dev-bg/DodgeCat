@@ -19,6 +19,9 @@ let musicPlaying = false;
 
 const deathSound = new Audio("sound/death.mp3");
 deathSound.volume = 0.05; // adjust volume (0.0 to 1.0)
+const wipeSound = new Audio("sound/wipe.mp3");
+wipeSound.volume = 0.1; // adjust volume (0.0 to 1.0)
+
 
 let orbPickups = [];   // pickups sitting in the box (last 5s)
 let orbs = [];         // collected orbiting orbs
@@ -36,10 +39,23 @@ let isInvulnerable = false;
 let invulnerableTimer = 0;
 const INVULNERABLE_DURATION = 2000; // 2 seconds in ms
 
+let flashTimer = 0; // controls white flash duration
+
 /* ---------------- GAME STATE ---------------- */
 let player, projectiles, openings, keys;
 let timeSurvived, gameOver, projectileSpeed, spawnInterval, lastSpawn, lastTime;
-let highScores = [];
+
+let highScores = JSON.parse(localStorage.getItem("dodgecatHighScores") || "[]");
+const GAME_VERSION = "1.1.0"; // bump this whenever you change balance, mechanics, etc.
+const savedVersion = localStorage.getItem("dodgecatVersion");
+
+if (savedVersion !== GAME_VERSION) {
+  console.log('Version mismatch or first launch. Resetting highscores. (${savedVersion} → ${GAME_VERSION})');
+  highScores = [];
+  localStorage.setItem("dodgecatHighScores", JSON.stringify(highScores));
+  localStorage.setItem("dodgecatVersion", GAME_VERSION);
+}
+
 let shield = {
   active: false,
   visible: false, 
@@ -167,7 +183,7 @@ function drawBox() {
 function spawnProjectile() {
   const sides = ["top", "bottom", "left", "right"];
   const side = sides[Math.floor(Math.random() * sides.length)];
-  const numToSpawn = 3 + Math.floor(timeSurvived / 10);
+  const numToSpawn = 3 + Math.floor(timeSurvived / 15); //projectile scaling speed
 
   for (let i = 0; i < numToSpawn; i++) {
     const delay = i * 100; // stagger appearance in ms
@@ -270,7 +286,15 @@ function collectOrb() {
   pickupsCollected++;
   if (pickupsCollected >= PICKUPS_PER_LIFE) {
     pickupsCollected = 0;
-    if (lives < MAX_LIVES) lives++;
+    if (lives < MAX_LIVES) {
+      lives++;
+    } else {
+      // Already at max lives — clear projectiles and trigger flash
+      projectiles = [];
+      flashTimer = 0.3; // flash for 0.3 seconds
+	  wipeSound.currentTime = 0; // rewind to start in case it overlaps
+      wipeSound.play();
+    }
   }
 
 }
@@ -459,7 +483,15 @@ function activateShield() {
   pickupsCollected++;
   if (pickupsCollected >= PICKUPS_PER_LIFE) {
     pickupsCollected = 0;
-    if (lives < MAX_LIVES) lives++;
+    if (lives < MAX_LIVES) {
+      lives++;
+    } else {
+      // Already at max lives — clear projectiles and trigger flash
+      projectiles = [];
+      flashTimer = 0.3; // flash for 0.3 seconds
+	  wipeSound.currentTime = 0; // rewind to start in case it overlaps
+      wipeSound.play();
+    }
   }
 
 }
@@ -653,6 +685,14 @@ function draw() {
   drawShield();
   drawOrbPickups();
   drawOrbs();
+  
+  // Flash effect if triggered
+  if (flashTimer > 0) {
+    const alpha = Math.min(1, flashTimer / 0.3); // fade out over 0.3s
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.fillRect(boxOffset, boxOffset, boxSize, boxSize);
+  }
+
 }
 
 function loop() {
@@ -696,6 +736,7 @@ if (gameOver) {
     highScores.push(timeSurvived);
     highScores.sort((a, b) => b - a);
     if (highScores.length > 5) highScores.length = 5;
+	localStorage.setItem("dodgecatHighScores", JSON.stringify(highScores));
 
     let scoreHTML = '<div style="color:red;font-size:20px;">GAME OVER</div>';
     scoreHTML += `<div>Time survived: ${timeSurvived.toFixed(1)}s</div>`;
@@ -727,7 +768,7 @@ if (gameOver) {
   document.getElementById("timer").textContent=`Time: ${timeSurvived.toFixed(1)}s`;
 
   // projectile speed in px/sec: base + growth based on time survived
-  projectileSpeed = baseProjectileSpeed + Math.min(150, Math.sqrt(timeSurvived) * 5); 
+  projectileSpeed = baseProjectileSpeed + Math.min(100, Math.sqrt(timeSurvived) * 3); 
 
   spawnInterval = Math.max(500,2000-Math.sqrt(timeSurvived)*70);
   
@@ -741,6 +782,12 @@ if (gameOver) {
   }
   updateOrbPickups(delta);
   updateOrbs(delta);
+  
+  // Update flash timer
+  if (flashTimer > 0) {
+    flashTimer -= delta;
+    if (flashTimer < 0) flashTimer = 0;
+  }
 
   draw();
   requestAnimationFrame(loop);
