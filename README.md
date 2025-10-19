@@ -12,7 +12,8 @@ Good luck and have fun!
 #
 © 2025 Ross-Dev-BG
 
-Music - YouFulca - https://wingless-seraph.net/en/material-music.html
+Music  
+- YouFulca - https://wingless-seraph.net/en/material-music.html
 
 SFX  
 - SOUND_GARAGE - https://pixabay.com/users/sound_garage-47313534/  
